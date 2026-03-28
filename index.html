@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Departures">
+<meta name="theme-color" content="#f0ede6">
 <title>Departures</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
@@ -258,11 +262,44 @@
     pointer-events: none; z-index: 999;
   }
 
+  /* ── MOBILE NAV ──────────────────────────────────────────────── */
+  .mobile-nav { display: none; }
+
   @media (max-width: 640px) {
+    body { padding: 0.75rem 1rem 5rem; }
+
     .routes { grid-template-columns: 1fr; }
     .route-col { border-right: none; border-bottom: 1px solid var(--divider); padding: 1rem 0; }
     .route-col:last-child { border-bottom: none; }
     .train.next { box-shadow: none; }
+
+    .mode-toggle { display: none; }
+
+    .mobile-nav {
+      display: flex;
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: var(--paper);
+      border-top: 2px solid var(--ink);
+      z-index: 1000;
+    }
+
+    .mobile-nav a {
+      flex: 1;
+      text-align: center;
+      padding: 0.85rem 0.5rem 1.1rem;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--mid);
+      text-decoration: none;
+    }
+
+    .mobile-nav a.active {
+      color: var(--ink);
+      font-weight: 600;
+    }
   }
 
   /* ── eINK MODE OVERRIDES ─────────────────────────────────────── */
@@ -544,15 +581,21 @@
 
 <div class="routes" id="routes"></div>
 
-<div class="tube-section">
+<div class="tube-section" id="section-tube">
   <div class="tube-section-title">London Underground · Line Status</div>
   <div class="tube-grid" id="tube-grid"></div>
 </div>
 
-<div class="bus-section">
+<div class="bus-section" id="section-bus">
   <div class="bus-section-title">Bus Arrivals</div>
   <div class="bus-stops-grid" id="bus-stops-grid"></div>
 </div>
+
+<nav class="mobile-nav" id="mobile-nav">
+  <a href="#routes">Trains</a>
+  <a href="#section-tube">Tube</a>
+  <a href="#section-bus">Bus</a>
+</nav>
 
 <footer>
   <span><span class="dot"></span>Data via Huxley2 / National Rail Darwin</span>
@@ -911,6 +954,26 @@ setInterval(loadBuses, BUS_REFRESH_MS);
 
 loadTubeStatus();
 setInterval(loadTubeStatus, 5 * 60_000);
+
+// ── MOBILE NAV: highlight active section on scroll ────────────────────────────
+(function() {
+  const sections = [
+    { el: document.getElementById('routes'),       idx: 0 },
+    { el: document.getElementById('section-tube'), idx: 1 },
+    { el: document.getElementById('section-bus'),  idx: 2 },
+  ];
+  const links = document.querySelectorAll('.mobile-nav a');
+  function updateNav() {
+    if (!links.length) return;
+    let active = 0;
+    sections.forEach((s, i) => {
+      if (s.el && s.el.getBoundingClientRect().top <= window.innerHeight / 2) active = i;
+    });
+    links.forEach((l, i) => l.classList.toggle('active', i === active));
+  }
+  window.addEventListener('scroll', updateNav, { passive: true });
+  updateNav();
+})();
 </script>
 </body>
 </html>
