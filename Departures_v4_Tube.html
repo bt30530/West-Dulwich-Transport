@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Departures</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0a0a0a;
+    --paper: #f0ede6;
+    --mid: #888;
+    --light: #d0cdc6;
+    --divider: #b0ada6;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'IBM Plex Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem 2rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 0.8rem;
+    margin-bottom: 1.5rem;
+    animation: fadeIn 0.5s ease both;
+  }
+
+  .header-left { display: flex; flex-direction: column; gap: 0.2rem; }
+
+  .page-title {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 500;
+    font-size: clamp(1rem, 2.5vw, 1.4rem);
+    letter-spacing: -0.01em;
+    line-height: 1;
+  }
+
+  .page-sub {
+    font-size: 0.6rem;
+    color: var(--mid);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .clock {
+    font-size: clamp(2rem, 5vw, 3rem);
+    font-weight: 300;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  .routes {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0 2px;
+    flex: 1;
+  }
+
+  .route-col {
+    padding: 0 1.2rem;
+    border-right: 1px solid var(--divider);
+    opacity: 0;
+    animation: fadeIn 0.5s ease both;
+  }
+
+  .route-col:first-child { padding-left: 0.8rem; }
+  .route-col:last-child  { padding-right: 0.8rem; border-right: none; }
+  .route-col:nth-child(1) { animation-delay: 0.1s; }
+  .route-col:nth-child(2) { animation-delay: 0.2s; }
+  .route-col:nth-child(3) { animation-delay: 0.3s; }
+
+  .route-header {
+    margin-bottom: 0.6rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--ink);
+  }
+
+  .route-from-to {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 500;
+    font-size: clamp(0.75rem, 1.4vw, 0.95rem);
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .route-from-to span:first-child,
+  .route-from-to span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .arrow { font-size: 0.7em; color: var(--mid); flex-shrink: 0; }
+
+  .route-crs {
+    font-size: 0.55rem;
+    color: var(--mid);
+    letter-spacing: 0.18em;
+    margin-top: 0.2rem;
+    text-transform: uppercase;
+  }
+
+  .col-labels {
+    display: grid;
+    grid-template-columns: 72px 1fr 70px;
+    gap: 0 0.6rem;
+    font-size: 0.52rem;
+    letter-spacing: 0.18em;
+    color: var(--mid);
+    text-transform: uppercase;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid var(--light);
+    margin-bottom: 0.1rem;
+  }
+
+  .train {
+    display: grid;
+    grid-template-columns: 72px 1fr 70px;
+    gap: 0 0.6rem;
+    padding: 0.65rem 0;
+    border-bottom: 1px solid var(--light);
+    align-items: start;
+    opacity: 0;
+    animation: slideIn 0.4s ease both;
+  }
+
+  .train:last-child { border-bottom: none; }
+  .train:nth-child(2) { animation-delay: .05s; }
+  .train:nth-child(3) { animation-delay: .10s; }
+  .train:nth-child(4) { animation-delay: .15s; }
+
+  .train.next {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 0.7rem 0;
+    border-bottom: none;
+    box-shadow: 1.2rem 0 0 var(--ink), -1.2rem 0 0 var(--ink);
+  }
+
+  .route-col:first-child .train.next { box-shadow:  1.2rem 0 0 var(--ink), -0.8rem 0 0 var(--ink); }
+  .route-col:last-child  .train.next { box-shadow:  0.8rem 0 0 var(--ink), -1.2rem 0 0 var(--ink); }
+
+  .dep-time {
+    font-size: clamp(0.9rem, 1.6vw, 1.1rem);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+
+  .train.next .dep-time { font-size: clamp(1rem, 1.8vw, 1.25rem); }
+
+  .dest {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 400;
+    font-size: clamp(0.7rem, 1.2vw, 0.85rem);
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .operator-tag {
+    font-size: 0.52rem;
+    color: var(--mid);
+    margin-top: 0.15rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .train.next .operator-tag { color: #999; }
+
+  .status-col { text-align: right; }
+
+  .status {
+    font-size: 0.62rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  .status.ok   { color: #2e7d32; font-weight: 600; }
+  .status.late { color: #c87800; font-weight: 600; }
+  .status.canc { color: #c0202a; font-weight: 600; }
+
+  .train.next .status.ok   { color: #66bb6a; }
+  .train.next .status.late { color: #ffb340; }
+  .train.next .status.canc { color: #ff6b6b; }
+
+  .plat {
+    font-size: 0.52rem;
+    color: var(--mid);
+    margin-top: 0.15rem;
+    text-align: right;
+    letter-spacing: 0.08em;
+  }
+
+  .train.next .plat { color: #999; }
+
+  .msg {
+    font-size: 0.65rem;
+    color: var(--mid);
+    padding: 1rem 0;
+    letter-spacing: 0.08em;
+  }
+
+  footer {
+    margin-top: 1.2rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.55rem;
+    color: var(--light);
+    letter-spacing: 0.1em;
+    animation: fadeIn 0.5s 0.5s ease both;
+    opacity: 0;
+  }
+
+  .dot {
+    display: inline-block;
+    width: 5px; height: 5px;
+    background: var(--ink);
+    border-radius: 50%;
+    margin-right: 0.4rem;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes fadeIn  { from { opacity:0 } to { opacity:1 } }
+  @keyframes slideIn { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:translateY(0) } }
+  @keyframes pulse   { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    border: 10px solid transparent;
+    border-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Crect x='0' y='0' width='4' height='4' fill='%230a0a0a' opacity='0.1'/%3E%3Crect x='4' y='4' width='4' height='4' fill='%230a0a0a' opacity='0.1'/%3E%3C/svg%3E") 10 repeat;
+    pointer-events: none; z-index: 999;
+  }
+
+  @media (max-width: 640px) {
+    .routes { grid-template-columns: 1fr; }
+    .route-col { border-right: none; border-bottom: 1px solid var(--divider); padding: 1rem 0; }
+    .route-col:last-child { border-bottom: none; }
+    .train.next { box-shadow: none; }
+  }
+
+  /* ── TUBE STATUS ─────────────────────────────────────────────── */
+  .tube-section {
+    margin-top: 1.5rem;
+    padding-top: 1.2rem;
+    border-top: 2px solid var(--ink);
+    opacity: 0;
+    animation: fadeIn 0.5s 0.6s ease both;
+  }
+
+  .tube-section-title {
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--mid);
+    margin-bottom: 0.8rem;
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+
+  .tube-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.4rem;
+  }
+
+  .tube-line {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--light);
+    border-radius: 2px;
+    opacity: 0;
+    animation: slideIn 0.4s ease both;
+  }
+
+  .tube-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .tube-name {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 500;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tube-status {
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  .tube-status.good    { color: #2e7d32; }
+  .tube-status.minor   { color: #c87800; }
+  .tube-status.severe  { color: #c0202a; }
+  .tube-status.loading { color: var(--mid); font-weight: 400; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="page-title">South London Departures</div>
+    <div class="page-sub">National Rail · Live Board</div>
+  </div>
+  <div class="clock" id="clock">--:--</div>
+</header>
+
+<div class="routes" id="routes"></div>
+
+<div class="tube-section">
+  <div class="tube-section-title">London Underground · Line Status</div>
+  <div class="tube-grid" id="tube-grid"></div>
+</div>
+
+<footer>
+  <span><span class="dot"></span>Data via Huxley2 / National Rail Darwin</span>
+  <span id="updated">–</span>
+</footer>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+const ROUTES = [
+  { from: 'WDU', to: 'VIC', fromName: 'West Dulwich', toName: 'Victoria'      },
+  { from: 'TUH', to: 'LBG', fromName: 'Tulse Hill',   toName: 'London Bridge' },
+  { from: 'HNH', to: 'BFR', fromName: 'Herne Hill',   toName: 'Blackfriars'  },
+];
+const NUM_TRAINS = 3;
+const REFRESH_MS = 90_000;
+
+// ── TO GO LIVE ────────────────────────────────────────────────────────────────
+// 1. Register free at: https://realtime.nationalrail.co.uk/OpenLDBWSRegistration
+// 2. Paste your token below
+// 3. Change USE_MOCK to false
+const ACCESS_TOKEN = 'f5e70f15-c4d2-473c-90b3-0b66d94682c0';
+const USE_MOCK = false;
+
+// ── MOCK DATA (realistic South London trains) ─────────────────────────────────
+function getMockData(route) {
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const addMins = m => {
+    const d = new Date(now.getTime() + m * 60000);
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const mocks = {
+    'WDU-VIC': [
+      { std: addMins(4),  etd: 'On time',  destination: 'London Victoria',    operator: 'Southeastern',  platform: '1' },
+      { std: addMins(19), etd: 'On time',  destination: 'London Victoria',    operator: 'Southeastern',  platform: '1' },
+      { std: addMins(34), etd: addMins(38),destination: 'London Victoria',    operator: 'Southeastern',  platform: '2' },
+    ],
+    'TUH-LBG': [
+      { std: addMins(2),  etd: 'On time',  destination: 'London Bridge',      operator: 'Southern',      platform: '3' },
+      { std: addMins(17), etd: 'On time',  destination: 'London Bridge',      operator: 'Thameslink',    platform: '3' },
+      { std: addMins(32), etd: 'On time',  destination: 'London Bridge',      operator: 'Southern',      platform: '4' },
+    ],
+    'HNH-BFR': [
+      { std: addMins(7),  etd: 'Cancelled',destination: 'London Blackfriars', operator: 'Thameslink',    platform: ''  },
+      { std: addMins(15), etd: 'On time',  destination: 'London Blackfriars', operator: 'Thameslink',    platform: '1' },
+      { std: addMins(30), etd: 'On time',  destination: 'London Blackfriars', operator: 'Thameslink',    platform: '1' },
+    ],
+  };
+
+  return mocks[`${route.from}-${route.to}`] || [];
+}
+
+// ── CLOCK ─────────────────────────────────────────────────────────────────────
+function tick() {
+  document.getElementById('clock').textContent = new Date().toTimeString().slice(0,5);
+}
+setInterval(tick, 1000); tick();
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+}
+
+function statusInfo(etd) {
+  if (!etd || etd === 'On time') return { label: 'On time', cls: 'ok' };
+  if (etd === 'Cancelled')       return { label: 'Cancelled', cls: 'canc' };
+  return { label: 'Exp ' + etd, cls: 'late' };
+}
+
+// ── BUILD SKELETON ────────────────────────────────────────────────────────────
+function buildSkeleton() {
+  const container = document.getElementById('routes');
+  container.innerHTML = ROUTES.map((r, i) => `
+    <div class="route-col" id="col-${i}">
+      <div class="route-header">
+        <div class="route-from-to">
+          <span>${esc(r.fromName)}</span>
+          <span class="arrow">→</span>
+          <span>${esc(r.toName)}</span>
+        </div>
+        <div class="route-crs">${r.from} → ${r.to}</div>
+      </div>
+      <div class="col-labels">
+        <span>Time</span><span>Destination</span><span style="text-align:right">Status</span>
+      </div>
+      <div class="trains"><div class="msg">Loading…</div></div>
+    </div>`).join('');
+}
+
+// ── RENDER COLUMN ─────────────────────────────────────────────────────────────
+function renderColumn(colEl, trains, error) {
+  const trainEl = colEl.querySelector('.trains');
+  if (error)          { trainEl.innerHTML = '<div class="msg">Could not load data</div>'; return; }
+  if (!trains.length) { trainEl.innerHTML = '<div class="msg">No services found</div>';   return; }
+
+  trainEl.innerHTML = trains.map((t, i) => {
+    const { label, cls } = statusInfo(t.etd);
+    const platText = t.platform ? 'Plt ' + esc(t.platform) : '';
+    return `
+      <div class="train${i === 0 ? ' next' : ''}">
+        <div class="dep-time">${esc(t.std)}</div>
+        <div>
+          <div class="dest">${esc(t.destination)}</div>
+          <div class="operator-tag">${esc(t.operator)}</div>
+        </div>
+        <div class="status-col">
+          <div class="status ${cls}">${esc(label)}</div>
+          <div class="plat">${platText}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── FETCH ONE ROUTE (live) ────────────────────────────────────────────────────
+async function fetchRoute(route) {
+  const url = `https://huxley2.azurewebsites.net/departures/${route.from}/to/${route.to}/${NUM_TRAINS}?accessToken=${ACCESS_TOKEN}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  return (data.trainServices || []).map(s => ({
+    std:         s.std ?? '--:--',
+    etd:         s.etd,
+    destination: s.destination?.[0]?.locationName ?? route.toName,
+    operator:    s.operator ?? '',
+    platform:    s.platform ?? '',
+  }));
+}
+
+// ── LOAD ALL ROUTES ───────────────────────────────────────────────────────────
+async function loadAll() {
+  await Promise.allSettled(ROUTES.map(async (route, i) => {
+    const col = document.getElementById('col-' + i);
+    try {
+      const trains = USE_MOCK ? getMockData(route) : await fetchRoute(route);
+      renderColumn(col, trains, false);
+    } catch (e) {
+      console.error(route.from + '→' + route.to, e);
+      renderColumn(col, [], true);
+    }
+  }));
+  document.getElementById('updated').textContent =
+    'Updated ' + new Date().toTimeString().slice(0,8);
+}
+
+buildSkeleton();
+loadAll();
+setInterval(loadAll, REFRESH_MS);
+
+// ── TUBE LINE COLOURS ─────────────────────────────────────────────────────────
+const TUBE_COLOURS = {
+  'bakerloo':            '#B36305',
+  'central':             '#E32017',
+  'circle':              '#FFD300',
+  'district':            '#00782A',
+  'hammersmith-city':    '#F3A9BB',
+  'jubilee':             '#A0A5A9',
+  'metropolitan':        '#9B0056',
+  'northern':            '#000000',
+  'piccadilly':          '#003688',
+  'victoria':            '#0098D4',
+  'waterloo-city':       '#95CDBA',
+  'elizabeth':           '#6950A1',
+  'dlr':                 '#00A4A7',
+  'london-overground':   '#EE7C0E',
+};
+
+const TUBE_NAMES = {
+  'bakerloo':            'Bakerloo',
+  'central':             'Central',
+  'circle':              'Circle',
+  'district':            'District',
+  'hammersmith-city':    'Hammersmith & City',
+  'jubilee':             'Jubilee',
+  'metropolitan':        'Metropolitan',
+  'northern':            'Northern',
+  'piccadilly':          'Piccadilly',
+  'victoria':            'Victoria',
+  'waterloo-city':       'Waterloo & City',
+  'elizabeth':           'Elizabeth line',
+  'dlr':                 'DLR',
+  'london-overground':   'Overground',
+};
+
+function tubeStatusClass(severity) {
+  if (severity === 10) return 'good';
+  if (severity <= 6)  return 'severe';
+  return 'minor';
+}
+
+function renderTubeLoading() {
+  const grid = document.getElementById('tube-grid');
+  grid.innerHTML = Object.keys(TUBE_NAMES).map(id => `
+    <div class="tube-line">
+      <div class="tube-dot" style="background:${TUBE_COLOURS[id] || '#888'}"></div>
+      <div class="tube-name">${TUBE_NAMES[id]}</div>
+      <div class="tube-status loading">…</div>
+    </div>`).join('');
+}
+
+function renderTube(lines) {
+  const grid = document.getElementById('tube-grid');
+  grid.innerHTML = lines.map((line, i) => {
+    const id       = line.id;
+    const colour   = TUBE_COLOURS[id] || '#888';
+    const name     = TUBE_NAMES[id]   || line.name;
+    const statuses = line.lineStatuses || [];
+    const top      = statuses[0] || {};
+    const severity = top.statusSeverity ?? 10;
+    const label    = top.statusSeverityDescription || 'Good Service';
+    const cls      = tubeStatusClass(severity);
+    const delay    = (i * 0.04).toFixed(2);
+    return `
+      <div class="tube-line" style="animation-delay:${delay}s">
+        <div class="tube-dot" style="background:${colour}"></div>
+        <div class="tube-name">${name}</div>
+        <div class="tube-status ${cls}">${label}</div>
+      </div>`;
+  }).join('');
+}
+
+async function loadTubeStatus() {
+  renderTubeLoading();
+  try {
+    const ids = Object.keys(TUBE_NAMES).join(',');
+    const res = await fetch(`https://api.tfl.gov.uk/Line/${ids}/Status`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    // Sort: problems first, then alphabetically
+    data.sort((a, b) => {
+      const sa = a.lineStatuses?.[0]?.statusSeverity ?? 10;
+      const sb = b.lineStatuses?.[0]?.statusSeverity ?? 10;
+      if (sa !== sb) return sa - sb;
+      return (TUBE_NAMES[a.id] || a.name).localeCompare(TUBE_NAMES[b.id] || b.name);
+    });
+    renderTube(data);
+  } catch (e) {
+    console.error('Tube status error:', e);
+    document.getElementById('tube-grid').innerHTML =
+      '<div style="font-size:0.65rem;color:var(--mid);padding:0.5rem 0">Could not load tube status</div>';
+  }
+}
+
+loadTubeStatus();
+setInterval(loadTubeStatus, 5 * 60_000); // refresh every 5 mins
+</script>
+</body>
+</html>
