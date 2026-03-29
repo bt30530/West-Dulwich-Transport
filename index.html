@@ -629,9 +629,9 @@ function toggleEink() {
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 const ROUTES = [
-  { from: 'WDU', to: 'VIC', fromName: 'West Dulwich', toName: 'Victoria'      },
-  { from: 'TUH', to: 'LBG', fromName: 'Tulse Hill',   toName: 'London Bridge' },
-  { from: 'HNH', to: 'BFR', fromName: 'Herne Hill',   toName: 'Blackfriars'  },
+  { from: 'WDU', merge: ['VIC','BFR'], fromName: 'West Dulwich', toName: 'Northbound' },
+  { from: 'TUH', to: 'LBG',           fromName: 'Tulse Hill',   toName: 'London Bridge' },
+  { from: 'HNH', to: 'BFR',           fromName: 'Herne Hill',   toName: 'Blackfriars'  },
 ];
 const NUM_TRAINS = 3;
 const REFRESH_MS = 90_000;
@@ -653,10 +653,10 @@ function getMockData(route) {
   };
 
   const mocks = {
-    'WDU-VIC': [
+    'WDU-MERGED': [
       { std: addMins(4),  etd: 'On time',  destination: 'London Victoria',    operator: 'Southeastern',  platform: '1' },
+      { std: addMins(12), etd: 'On time',  destination: 'London Blackfriars', operator: 'Southeastern',  platform: '2' },
       { std: addMins(19), etd: 'On time',  destination: 'London Victoria',    operator: 'Southeastern',  platform: '1' },
-      { std: addMins(34), etd: addMins(38),destination: 'London Victoria',    operator: 'Southeastern',  platform: '2' },
     ],
     'TUH-LBG': [
       { std: addMins(2),  etd: 'On time',  destination: 'London Bridge',      operator: 'Southern',      platform: '3' },
@@ -670,7 +670,8 @@ function getMockData(route) {
     ],
   };
 
-  return mocks[`${route.from}-${route.to}`] || [];
+  const key = route.merge ? `${route.from}-MERGED` : `${route.from}-${route.to}`;
+  return mocks[key] || [];
 }
 
 // ── CLOCK ─────────────────────────────────────────────────────────────────────
@@ -700,7 +701,7 @@ function buildSkeleton() {
           <span class="arrow">→</span>
           <span>${esc(r.toName)}</span>
         </div>
-        <div class="route-crs">${r.from} → ${r.to}</div>
+        <div class="route-crs">${r.merge ? r.from + ' → ' + r.merge.join(' · ') : r.from + ' → ' + r.to}</div>
       </div>
       <div class="col-labels">
         <span>Time</span><span>Destination</span><span style="text-align:right">Status</span>
@@ -748,15 +749,33 @@ async function fetchRoute(route) {
   }));
 }
 
+// ── FETCH AND MERGE MULTIPLE DESTINATIONS ────────────────────────────────────
+async function fetchMerged(route) {
+  const results = await Promise.all(
+    route.merge.map(to => fetchRoute({ from: route.from, to, fromName: route.fromName, toName: to }))
+  );
+  // Merge all results, sort by scheduled time, take top NUM_TRAINS
+  return results.flat()
+    .sort((a, b) => a.std.localeCompare(b.std))
+    .slice(0, NUM_TRAINS);
+}
+
 // ── LOAD ALL ROUTES ───────────────────────────────────────────────────────────
 async function loadAll() {
   await Promise.allSettled(ROUTES.map(async (route, i) => {
     const col = document.getElementById('col-' + i);
     try {
-      const trains = USE_MOCK ? getMockData(route) : await fetchRoute(route);
+      let trains;
+      if (USE_MOCK) {
+        trains = getMockData(route);
+      } else if (route.merge) {
+        trains = await fetchMerged(route);
+      } else {
+        trains = await fetchRoute(route);
+      }
       renderColumn(col, trains, false);
     } catch (e) {
-      console.error(route.from + '→' + route.to, e);
+      console.error(route.from, e);
       renderColumn(col, [], true);
     }
   }));
